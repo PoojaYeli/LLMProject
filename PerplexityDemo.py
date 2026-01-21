@@ -13,16 +13,6 @@ client = OpenAI(api_key=openai_api_key)
 max_results = 10
 conversation_history = []
 
-
-# query = "unpopular south indian boy names"
-# query = "pooja veeresh yeli"
-# query = "shreyas hampali"
-# query = "Is Zurich the largest train station in Switzerland?"
-# query = "which is the largest train station in Switzerland?"
-# query = "best vegas hotels for families"
-# query = "openai api python"
-# print(google_api_key)
-
 def google_search(query, num=max_results):
     url = "https://google.serper.dev/search"
     headers = {
