@@ -1,5 +1,5 @@
 """
-Simple file upload UI for RAG document ingestion.
+RAG app UI.
 
 Run with: streamlit run app.py
 """
@@ -11,6 +11,7 @@ from urllib.parse import urlparse
 from chunker import CHUNK_OVERLAP, CHUNK_SIZE, chunk_text
 from embedder import EMBEDDING_MODEL, embed_chunks
 from file_reader import read_uploaded_file, read_webpage
+from search import search_chunks
 from vector_store import COLLECTION_NAME, PERSIST_DIR, get_stored_chunk_count, store_chunks
 
 # Allowed file extensions (webpage = HTML files)
@@ -35,6 +36,10 @@ def get_file_extension(filename: str) -> str:
 def is_valid_webpage_url(url: str) -> bool:
     parsed = urlparse(url.strip())
     return parsed.scheme in ("http", "https") and bool(parsed.netloc)
+
+
+def show_allowed_types() -> None:
+    st.caption("Allowed types: PDF, DOC, DOCX, or Webpage (HTML file or URL)")
 
 
 def show_text_preview(text: str, source_label: str) -> None:
@@ -133,67 +138,109 @@ def process_document(text: str, source_label: str) -> None:
     show_storage_result(stored_count)
 
 
-def show_allowed_types():
-    st.caption("Allowed types: PDF, DOC, DOCX, or Webpage (HTML file or URL)")
+def handle_question(question: str) -> None:
+    """Handle a user question: search ChromaDB and show relevant chunks."""
+    question = question.strip()
+
+    if not question:
+        st.warning("Please enter a question.")
+        return
+
+    if get_stored_chunk_count() == 0:
+        st.warning("No documents in the knowledge base yet. Upload a document first.")
+        return
+
+    st.info(f"Your question: **{question}**")
+
+    with st.spinner("Searching for relevant chunks..."):
+        matches = search_chunks(question)
+
+    if not matches:
+        st.warning("No relevant chunks found.")
+        return
+
+    st.success(f"Found **{len(matches)} relevant chunks**")
+    st.caption("Next step: send these chunks to an LLM to generate an answer.")
+
+    for index, match in enumerate(matches, start=1):
+        with st.expander(
+            f"Match {index} | source: {match['source']} | chunk: {match['chunk_index']}"
+        ):
+            st.text(match["text"])
+            st.caption(f"Distance score: {match['distance']:.4f} (lower is more similar)")
 
 
-st.set_page_config(page_title="Document Upload", page_icon="📄", layout="centered")
+st.set_page_config(page_title="RAG App", page_icon="📄", layout="wide")
 
-st.title("Upload a Document")
-st.write("Upload a file or paste a webpage URL to add it to your knowledge base.")
+st.title("RAG Knowledge Base")
 
-show_allowed_types()
+upload_col, question_col = st.columns(2)
 
-uploaded_file = st.file_uploader(
-    "Choose a file",
-    type=["pdf", "doc", "docx", "html", "htm", "mhtml"],
-    help="Supported: PDF, Word (.doc/.docx), or saved webpage (.html)",
-)
+with upload_col:
+    st.subheader("Upload a Document")
+    st.write("Upload a file or paste a webpage URL to add it to your knowledge base.")
+    show_allowed_types()
 
-webpage_url = st.text_input(
-    "Or paste a webpage URL",
-    placeholder="https://example.com/article",
-)
+    uploaded_file = st.file_uploader(
+        "Choose a file",
+        type=["pdf", "doc", "docx", "html", "htm", "mhtml"],
+        help="Supported: PDF, Word (.doc/.docx), or saved webpage (.html)",
+    )
 
-if st.button("Submit", type="primary"):
-    # --- File upload path ---
-    if uploaded_file is not None:
-        ext = get_file_extension(uploaded_file.name)
+    webpage_url = st.text_input(
+        "Or paste a webpage URL",
+        placeholder="https://example.com/article",
+    )
 
-        if ext not in ALLOWED_EXTENSIONS:
-            st.error(
-                f"Unsupported file type `{ext or '(none)'}`. "
-                f"Please upload a PDF, DOC, DOCX, or webpage (HTML) file."
-            )
+    if st.button("Submit", type="primary", key="submit_upload"):
+        if uploaded_file is not None:
+            ext = get_file_extension(uploaded_file.name)
+
+            if ext not in ALLOWED_EXTENSIONS:
+                st.error(
+                    f"Unsupported file type `{ext or '(none)'}`. "
+                    f"Please upload a PDF, DOC, DOCX, or webpage (HTML) file."
+                )
+            else:
+                file_type = EXTENSION_LABELS.get(ext, ext)
+
+                try:
+                    with st.spinner(f"Reading {file_type} file..."):
+                        text = read_uploaded_file(uploaded_file, ext)
+
+                    st.info(f"File: **{uploaded_file.name}** ({file_type})")
+                    process_document(text, uploaded_file.name)
+
+                except Exception as error:
+                    st.error(f"Could not read the file: {error}")
+
+        elif webpage_url.strip():
+            if not is_valid_webpage_url(webpage_url):
+                st.error("Invalid webpage URL. Use a full link starting with http:// or https://")
+            else:
+                url = webpage_url.strip()
+
+                try:
+                    with st.spinner("Downloading webpage..."):
+                        text = read_webpage(url)
+
+                    st.info(f"Webpage: **{url}**")
+                    process_document(text, url)
+
+                except Exception as error:
+                    st.error(f"Could not read the webpage: {error}")
+
         else:
-            file_type = EXTENSION_LABELS.get(ext, ext)
+            st.warning("Please upload a file or enter a webpage URL.")
 
-            try:
-                with st.spinner(f"Reading {file_type} file..."):
-                    text = read_uploaded_file(uploaded_file, ext)
+with question_col:
+    st.subheader("Ask a Question")
+    st.write("Ask a question about the documents you uploaded.")
 
-                st.info(f"File: **{uploaded_file.name}** ({file_type})")
-                process_document(text, uploaded_file.name)
+    question = st.text_input(
+        "Your question",
+        placeholder="What is the refund policy?",
+    )
 
-            except Exception as error:
-                st.error(f"Could not read the file: {error}")
-
-    # --- Webpage URL path ---
-    elif webpage_url.strip():
-        if not is_valid_webpage_url(webpage_url):
-            st.error("Invalid webpage URL. Use a full link starting with http:// or https://")
-        else:
-            url = webpage_url.strip()
-
-            try:
-                with st.spinner("Downloading webpage..."):
-                    text = read_webpage(url)
-
-                st.info(f"Webpage: **{url}**")
-                process_document(text, url)
-
-            except Exception as error:
-                st.error(f"Could not read the webpage: {error}")
-
-    else:
-        st.warning("Please upload a file or enter a webpage URL.")
+    if st.button("Ask", type="primary", key="ask_question"):
+        handle_question(question)

@@ -1,10 +1,5 @@
 """
 Store chunk embeddings in ChromaDB.
-
-ChromaDB keeps three things together for each chunk:
-- the text (document)
-- the embedding vector
-- metadata (source name, chunk number)
 """
 
 import os
@@ -15,10 +10,13 @@ from pathlib import Path
 import chromadb
 from dotenv import load_dotenv
 
-load_dotenv()
-load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+RAG_DIR = Path(__file__).resolve().parent
 
-DEFAULT_PERSIST_DIR = Path(__file__).resolve().parent / "chroma_data"
+load_dotenv()
+load_dotenv(RAG_DIR / ".env")
+load_dotenv(RAG_DIR.parent / ".env")
+
+DEFAULT_PERSIST_DIR = RAG_DIR / "chroma_data"
 PERSIST_DIR = os.getenv("CHROMA_PERSIST_DIR", str(DEFAULT_PERSIST_DIR))
 COLLECTION_NAME = os.getenv("CHROMA_COLLECTION_NAME", "rag_documents")
 
@@ -35,15 +33,7 @@ def store_chunks(
     embeddings: list[list[float]],
     source: str,
 ) -> int:
-    """
-    Save chunks and their embeddings to ChromaDB.
-
-    Steps:
-    1. Open the ChromaDB collection
-    2. Create a unique ID for each chunk
-    3. Save the text, vector, and metadata together
-    4. Return how many chunks were stored
-    """
+    """Save chunks and their embeddings to ChromaDB."""
     if not chunks or not embeddings:
         return 0
 
