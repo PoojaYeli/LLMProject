@@ -169,7 +169,6 @@ def handle_question(question: str) -> None:
             st.text(match["text"])
             st.caption(f"Distance score: {match['distance']:.4f} (lower is more similar)")
 
-
 st.set_page_config(page_title="RAG App", page_icon="📄", layout="wide")
 
 
@@ -177,7 +176,7 @@ st.set_page_config(page_title="RAG App", page_icon="📄", layout="wide")
 def _warm_up_retrieval() -> bool:
     """Load the embedding model once when the app starts."""
     loading = st.empty()
-    loading.info("Downloading the embeder model")
+    loading.info("Downloading the embeder model and loading the chroma DB...")
     warm_up()
     loading.empty()
     return True

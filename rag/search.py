@@ -12,11 +12,6 @@ def warm_up() -> None:
     """Pre-load the model and ChromaDB before the first search."""
     from embedder import warm_up_model
 
-    # loading = st.empty()
-    # loading.info("Loading the embedder model.")
-    # loading.empty()
-    # loading.info("Loading the chroma DB.")
-    # loading.empty()
     warm_up_model()
     get_collection().count()
 
