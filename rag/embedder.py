@@ -44,13 +44,25 @@ def embed_chunks(chunks: list[str]) -> list[list[float]]:
     return vectors.tolist()
 
 
-def embed_query(question: str) -> list[float]:
-    """Convert a user question into an embedding vector for search."""
+@lru_cache(maxsize=256)
+def _embed_query_cached(question: str) -> tuple[float, ...]:
+    """Cache query vectors so repeated questions skip model inference."""
     model = get_embedding_model()
-    prefixed_question = QUERY_PREFIX + question.strip()
+    prefixed_question = QUERY_PREFIX + question
     vector = model.encode(
         prefixed_question,
         normalize_embeddings=True,
         show_progress_bar=False,
     )
-    return vector.tolist()
+    return tuple(vector.tolist())
+
+
+def embed_query(question: str) -> list[float]:
+    """Convert a user question into an embedding vector for search."""
+    return list(_embed_query_cached(question.strip()))
+
+
+def warm_up_model() -> None:
+    """Load the model once at startup so the first question is faster."""
+    get_embedding_model()
+    embed_query("warm up")

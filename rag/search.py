@@ -8,6 +8,19 @@ from vector_store import get_collection
 DEFAULT_TOP_K = 3
 
 
+def warm_up() -> None:
+    """Pre-load the model and ChromaDB before the first search."""
+    from embedder import warm_up_model
+
+    # loading = st.empty()
+    # loading.info("Loading the embedder model.")
+    # loading.empty()
+    # loading.info("Loading the chroma DB.")
+    # loading.empty()
+    warm_up_model()
+    get_collection().count()
+
+
 def search_chunks(question: str, top_k: int = DEFAULT_TOP_K) -> list[dict]:
     """
     Find the most relevant chunks for a user question.
@@ -18,11 +31,17 @@ def search_chunks(question: str, top_k: int = DEFAULT_TOP_K) -> list[dict]:
     3. Return the best matching chunks with metadata
     """
     collection = get_collection()
+    total_chunks = collection.count()
+
+    if total_chunks == 0:
+        return []
+
     query_embedding = embed_query(question)
 
     results = collection.query(
         query_embeddings=[query_embedding],
-        n_results=top_k,
+        n_results=min(top_k, total_chunks),
+        include=["documents", "metadatas", "distances"],
     )
 
     matches = []

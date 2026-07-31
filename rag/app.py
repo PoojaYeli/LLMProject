@@ -11,7 +11,7 @@ from urllib.parse import urlparse
 from chunker import CHUNK_OVERLAP, CHUNK_SIZE, chunk_text
 from embedder import EMBEDDING_MODEL, embed_chunks
 from file_reader import read_uploaded_file, read_webpage
-from search import search_chunks
+from search import search_chunks, warm_up
 from vector_store import COLLECTION_NAME, PERSIST_DIR, get_stored_chunk_count, store_chunks
 
 # Allowed file extensions (webpage = HTML files)
@@ -171,6 +171,19 @@ def handle_question(question: str) -> None:
 
 
 st.set_page_config(page_title="RAG App", page_icon="📄", layout="wide")
+
+
+@st.cache_resource(show_spinner=False)
+def _warm_up_retrieval() -> bool:
+    """Load the embedding model once when the app starts."""
+    loading = st.empty()
+    loading.info("Downloading the embeder model")
+    warm_up()
+    loading.empty()
+    return True
+
+
+_warm_up_retrieval()
 
 st.title("RAG Knowledge Base")
 
