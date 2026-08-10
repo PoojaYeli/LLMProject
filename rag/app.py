@@ -8,6 +8,7 @@ import streamlit as st
 from pathlib import Path
 from urllib.parse import urlparse
 
+from answer import OPENAI_MODEL, generate_answer
 from chunker import CHUNK_OVERLAP, CHUNK_SIZE, chunk_text
 from embedder import EMBEDDING_MODEL, embed_chunks
 from file_reader import read_uploaded_file, read_webpage
@@ -160,8 +161,18 @@ def handle_question(question: str) -> None:
         return
 
     st.success(f"Found **{len(matches)} relevant chunks**")
-    st.caption("Next step: send these chunks to an LLM to generate an answer.")
 
+    try:
+        with st.spinner(f"Generating answer with OpenAI ({OPENAI_MODEL})..."):
+            answer = generate_answer(question, matches)
+    except Exception as error:
+        st.error(f"Could not generate answer: {error}")
+        return
+
+    st.subheader("Answer")
+    st.write(answer)
+
+    st.caption("Retrieved chunks used for this answer:")
     for index, match in enumerate(matches, start=1):
         with st.expander(
             f"Match {index} | source: {match['source']} | chunk: {match['chunk_index']}"
